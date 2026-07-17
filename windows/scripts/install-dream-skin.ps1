@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 $PortExplicit = $PSBoundParameters.ContainsKey('Port')
 $SkillRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'common-windows.ps1')
+Use-DreamSkinWindowsPowerShell -ScriptPath $PSCommandPath -BoundParameters $PSBoundParameters -RemainingArguments $args
 . (Join-Path $PSScriptRoot 'theme-windows.ps1')
 
 $operationLock = Enter-DreamSkinOperationLock

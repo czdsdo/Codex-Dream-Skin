@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param()
 
 $ErrorActionPreference = 'Stop'
@@ -288,6 +288,7 @@ try {
   }
   $fakeInstall = ConvertTo-DreamSkinCodexInstall -Package $fakePackage
   if ($null -eq $fakeInstall -or $fakeInstall.PackageFullName -cne $fakePackage.PackageFullName -or
+    $fakeInstall.ApplicationId -cne "$($fakePackage.PackageFamilyName)!App" -or
     -not (Test-DreamSkinPathEqual -Left $fakeInstall.Executable -Right $fakeExecutable)) {
     throw 'Registered Appx package identity conversion failed.'
   }
@@ -338,18 +339,19 @@ try {
   $themePaths = Initialize-DreamSkinThemeStore -SkillRoot $Root -StateRoot $themeStateRoot
   $initialTheme = Read-DreamSkinTheme -ThemeDirectory $themePaths.Active
   if ($initialTheme.Theme.id -cne 'preset-romantic-rose' -or
-    $initialTheme.Theme.name -cne '桥本有菜' -or
-    $initialTheme.Theme.appearance -cne 'auto' -or
+    $initialTheme.Theme.name -cne '浪漫玫瑰' -or
+    $initialTheme.Theme.appearance -cne 'light' -or
+    $initialTheme.Theme.palette.accent -cne '#C45E79' -or
     $initialTheme.Theme.art.safeArea -cne 'left' -or
     $initialTheme.Theme.art.taskMode -cne 'ambient' -or
     [System.IO.Path]::GetExtension($initialTheme.ImagePath) -cne '.jpg') {
-    throw 'Default Windows theme did not seed the Arina Hashimoto wallpaper contract.'
+    throw 'Default Windows theme did not seed the Romantic Rose wallpaper contract.'
   }
   $preseededThemes = @(Get-DreamSkinSavedThemes -StateRoot $themeStateRoot)
   if ($preseededThemes.Count -ne 1 -or
     $preseededThemes[0].Id -cne 'preset-romantic-rose' -or
-    $preseededThemes[0].Name -cne '桥本有菜') {
-    throw 'Arina Hashimoto was not preseeded in the Windows saved-theme menu.'
+    $preseededThemes[0].Name -cne '浪漫玫瑰') {
+    throw 'Romantic Rose was not preseeded in the Windows saved-theme menu.'
   }
   $updatedTheme = Set-DreamSkinActiveTheme -ImagePath (Join-Path $Root 'assets\dream-reference.jpg') `
     -Theme $null -Name '测试主题' -StateRoot $themeStateRoot
@@ -435,6 +437,7 @@ try {
   $css = Read-DreamSkinUtf8File -Path (Join-Path $Root 'assets\dream-skin.css')
   foreach ($requiredCss in @(
     'background-image: var(--dream-art)',
+    '[class~="group/application-menu-top-bar"].app-header-tint',
     'main.main-surface > header.app-header-tint',
     '.app-shell-main-content-top-fade',
     '.thread-scroll-container .bg-gradient-to-t.from-token-main-surface-primary',
@@ -480,7 +483,10 @@ try {
   }
 
   $rendererSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'assets\renderer-inject.js')
-  foreach ($requiredRendererBehavior in @('dream-home-utility', 'artMetadata', 'detectShellAppearance')) {
+  foreach ($requiredRendererBehavior in @(
+    'dream-home-utility', 'artMetadata', 'detectShellAppearance',
+    'codex-dream-skin-brand', 'codex-dream-skin-action-cards', 'dream-placeholder-managed'
+  )) {
     if (-not $rendererSource.Contains($requiredRendererBehavior)) {
       throw "Renderer adaptive behavior is missing: $requiredRendererBehavior"
     }
@@ -488,7 +494,8 @@ try {
   $injectorSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\injector.mjs')
   foreach ($requiredInjectorBehavior in @(
     'MAX_ART_BYTES', 'createHash', 'readImageMetadata', '50MP safety limit', 'STRONG_THEME_AUDIT_MS',
-    'Page.addScriptToEvaluateOnNewDocument', 'Page.removeScriptToEvaluateOnNewDocument', 'earlyPayloadFor'
+    'Page.addScriptToEvaluateOnNewDocument', 'Page.removeScriptToEvaluateOnNewDocument', 'earlyPayloadFor',
+    'romantic-rose-person.png', '__DREAM_LAYERS_JSON__'
   )) {
     if (-not $injectorSource.Contains($requiredInjectorBehavior)) {
       throw "Injector theme safety is missing: $requiredInjectorBehavior"
@@ -511,6 +518,10 @@ try {
   if (-not $commonSource.Contains('State was preserved.')) {
     throw 'Mismatched live injector identity does not fail closed with preserved state.'
   }
+  if (-not $commonSource.Contains('IApplicationActivationManager') -or
+    -not $startSource.Contains('Start-DreamSkinCodex -Codex $codex')) {
+    throw 'Codex Store relaunch does not use the package application activation API.'
+  }
 
   $node = Get-DreamSkinNodeRuntime
   & $node.Path (Join-Path $Root 'scripts\injector.mjs') --self-test *> $null
@@ -519,8 +530,15 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Injector self-test failed.' }
   & $node.Path (Join-Path $Root 'scripts\injector.mjs') --check-payload --theme-dir $themePaths.Active *> $null
   if ($LASTEXITCODE -ne 0) { throw 'Managed theme payload validation failed.' }
-  & $node.Path (Join-Path $Root 'scripts\injector.mjs') --check-payload --theme-dir $oversizedTheme *> $null
-  if ($LASTEXITCODE -eq 0) { throw 'Node injector accepted an image over the 16 MB limit.' }
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    & $node.Path (Join-Path $Root 'scripts\injector.mjs') --check-payload --theme-dir $oversizedTheme *> $null
+    $oversizedExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+  if ($oversizedExitCode -eq 0) { throw 'Node injector accepted an image over the 16 MB limit.' }
   & $node.Path (Join-Path $PSScriptRoot 'renderer-inject.test.mjs')
   if ($LASTEXITCODE -ne 0) { throw 'Renderer auxiliary-window regression test failed.' }
   & $node.Path (Join-Path $PSScriptRoot 'injector-bootstrap.test.mjs')

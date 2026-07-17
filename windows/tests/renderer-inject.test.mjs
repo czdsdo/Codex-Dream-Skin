@@ -10,6 +10,7 @@ const template = await fs.readFile(path.join(windowsRoot, "assets", "renderer-in
 const buildPayload = (config = {}) => template
   .replace("__DREAM_CSS_JSON__", JSON.stringify(".fixture { color: blue; }"))
   .replace("__DREAM_ART_JSON__", JSON.stringify("data:image/png;base64,AA=="))
+  .replace("__DREAM_LAYERS_JSON__", JSON.stringify({}))
   .replace("__DREAM_THEME_JSON__", JSON.stringify(config));
 const payload = buildPayload();
 
@@ -62,6 +63,7 @@ function createFixture({
   });
 
   root = {
+    dataset: {},
     className: shellAppearance,
     classList: makeClassList(rootClasses, queueRootClassMutation),
     getAttribute() { return null; },
@@ -272,6 +274,7 @@ const configured = createFixture({
   utilityPresent: true,
 });
 const configuredPayload = buildPayload({
+  id: "preset-romantic-rose",
   appearance: "light",
   palette: { accent: "#d45a70" },
   art: { focusX: .15, focusY: .8, safeArea: "right", taskMode: "off" },
@@ -285,10 +288,12 @@ assert.equal(configured.rootClasses.has("dream-safe-right"), true);
 assert.equal(configured.rootClasses.has("dream-task-off"), true);
 assert.equal(configured.rootStyles.get("--dream-art-position"), "15% 80%");
 assert.equal(configured.rootStyles.get("--dream-accent"), "#d45a70");
+assert.equal(configured.context.document.documentElement.dataset.dreamTheme, "preset-romantic-rose");
 assert.equal(configured.routeClasses.has("dream-home"), true);
 assert.equal(configured.routeClasses.has("dream-task"), false);
 assert.equal(configured.utilityClasses.has("dream-home-utility"), true);
 assert.equal(configured.context.window.__CODEX_DREAM_SKIN_STATE__.cleanup(), true);
+assert.equal(configured.context.document.documentElement.dataset.dreamTheme, undefined);
 assert.equal(configured.utilityClasses.has("dream-home-utility"), false);
 
 const analysisPixels = new Uint8ClampedArray(48 * 12 * 4);

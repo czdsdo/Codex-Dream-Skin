@@ -1,7 +1,10 @@
-((cssText, artDataUrl, rawConfig) => {
+((cssText, artDataUrl, rawLayers, rawConfig) => {
   const STATE_KEY = "__CODEX_DREAM_SKIN_STATE__";
   const STYLE_ID = "codex-dream-skin-style";
   const CHROME_ID = "codex-dream-skin-chrome";
+  const BRAND_ID = "codex-dream-skin-brand";
+  const HERO_DECOR_ID = "codex-dream-skin-hero-decor";
+  const CARDS_ID = "codex-dream-skin-action-cards";
   const ROOT_CLASSES = [
     "codex-dream-skin",
     "dream-theme-light",
@@ -27,6 +30,7 @@
     "--dream-accent",
     "--dream-accent-ink",
     "--dream-image-luma",
+    "--dream-person",
   ];
   const HOME_UTILITY_CLASS = "dream-home-utility";
   const installToken = {};
@@ -74,7 +78,24 @@
       ? art.taskMode
       : "auto";
     const metadataRatio = Number(config?.artMetadata?.ratio);
+    const copy = config.copy && typeof config.copy === "object" ? config.copy : {};
+    const shortText = (candidate, maxLength) =>
+      typeof candidate === "string" && candidate.length <= maxLength && !/[\u0000-\u001f]/.test(candidate)
+        ? candidate
+        : "";
+    const requestedThemeId = typeof config.id === "string" ? config.id.trim().toLowerCase() : "";
+    const themeId = /^[a-z0-9][a-z0-9._-]{0,79}$/.test(requestedThemeId)
+      ? requestedThemeId
+      : "";
     return {
+      themeId,
+      copy: {
+        brandTitle: shortText(copy.brandTitle, 80),
+        brandSubtitle: shortText(copy.brandSubtitle, 80),
+        signature: shortText(copy.signature, 80),
+        tagline: shortText(copy.tagline, 120),
+        placeholder: shortText(copy.placeholder, 120),
+      },
       appearance,
       safeArea,
       taskMode,
@@ -90,14 +111,19 @@
   if (previous?.timer) clearInterval(previous.timer);
   if (previous?.scheduler?.timeout) clearTimeout(previous.scheduler.timeout);
   if (previous?.artUrl) URL.revokeObjectURL(previous.artUrl);
-  const artUrl = (() => {
-    const comma = artDataUrl.indexOf(",");
-    const binary = atob(artDataUrl.slice(comma + 1));
+  if (previous?.personUrl) URL.revokeObjectURL(previous.personUrl);
+  const dataUrlToObjectUrl = (dataUrl) => {
+    if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) return null;
+    const comma = dataUrl.indexOf(",");
+    if (comma < 0) return null;
+    const binary = atob(dataUrl.slice(comma + 1));
     const bytes = new Uint8Array(binary.length);
     for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-    const mime = /^data:([^;,]+)/.exec(artDataUrl)?.[1] || "image/png";
+    const mime = /^data:([^;,]+)/.exec(dataUrl)?.[1] || "image/png";
     return URL.createObjectURL(new Blob([bytes], { type: mime }));
-  })();
+  };
+  const artUrl = dataUrlToObjectUrl(artDataUrl);
+  const personUrl = dataUrlToObjectUrl(rawLayers?.person);
   const config = normalizeConfig(rawConfig);
   let profile = {
     ...defaultProfile,
@@ -278,11 +304,20 @@
   const clearSkinDom = () => {
     const root = document.documentElement;
     root?.classList.remove(...ROOT_CLASSES);
+    if (root?.dataset) delete root.dataset.dreamTheme;
     for (const property of ROOT_PROPERTIES) root?.style.removeProperty(property);
     document.querySelectorAll(".dream-home").forEach((node) => node.classList.remove("dream-home"));
     document.querySelectorAll(".dream-task").forEach((node) => node.classList.remove("dream-task"));
     document.querySelectorAll(".dream-home-shell").forEach((node) => node.classList.remove("dream-home-shell"));
     document.querySelectorAll(`.${HOME_UTILITY_CLASS}`).forEach((node) => node.classList.remove(HOME_UTILITY_CLASS));
+    for (const id of [BRAND_ID, HERO_DECOR_ID, CARDS_ID]) document.getElementById(id)?.remove();
+    document.querySelectorAll(".dream-placeholder-managed").forEach((node) => {
+      const original = node.dataset.dreamOriginalPlaceholder;
+      if (original === undefined) node.removeAttribute("data-placeholder");
+      else node.setAttribute("data-placeholder", original);
+      delete node.dataset.dreamOriginalPlaceholder;
+      node.classList.remove("dream-placeholder-managed");
+    });
     document.getElementById(STYLE_ID)?.remove();
     document.getElementById(CHROME_ID)?.remove();
   };
@@ -299,6 +334,8 @@
       : config.taskMode;
     const accent = config.accent || `rgb(${profile.accent.join(" ")})`;
     const accentInk = luminance(...profile.accent) > .42 ? "rgb(26 24 28)" : "rgb(250 248 251)";
+    if (config.themeId) root.dataset.dreamTheme = config.themeId;
+    else delete root.dataset.dreamTheme;
     root.classList.toggle("dream-theme-light", appearance === "light");
     root.classList.toggle("dream-theme-dark", appearance === "dark");
     root.classList.toggle("dream-art-wide", profile.aspect >= 1.75);
@@ -319,6 +356,97 @@
     root.style.setProperty("--dream-accent", accent);
     root.style.setProperty("--dream-accent-ink", accentInk);
     root.style.setProperty("--dream-image-luma", profile.luma.toFixed(3));
+    if (personUrl) root.style.setProperty("--dream-person", `url("${personUrl}")`);
+    else root.style.removeProperty("--dream-person");
+  };
+
+  const roseActions = [
+    ["探索并理解代码", "请探索并解释当前代码库的结构、关键模块和主要数据流。"],
+    ["构建新功能、应用或工具", "请根据当前项目上下文，帮助我设计并实现一个新功能、应用或工具。"],
+    ["审查代码并提出修改建议", "请审查当前代码变更，优先指出缺陷、回归风险和缺失测试。"],
+    ["修复问题和失败", "请诊断当前项目中的问题或失败，定位根因并完成修复与验证。"],
+  ];
+
+  const makeElement = (tagName, className, textContent = "") => {
+    const node = document.createElement(tagName);
+    if (className) node.className = className;
+    if (textContent) node.textContent = textContent;
+    return node;
+  };
+
+  const fillComposer = (prompt) => {
+    const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
+    if (!editor) return;
+    editor.focus();
+    if ((editor.textContent || "").trim()) return;
+    try {
+      document.execCommand("insertText", false, prompt);
+      editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: prompt }));
+    } catch {}
+  };
+
+  const ensureRoseHome = (home, shellMain) => {
+    const active = config.themeId === "preset-romantic-rose" && Boolean(home);
+    if (!active) {
+      for (const id of [BRAND_ID, HERO_DECOR_ID, CARDS_ID]) document.getElementById(id)?.remove();
+      return;
+    }
+
+    if (!document.getElementById(BRAND_ID) && typeof shellMain.appendChild === "function") {
+      const brand = makeElement("section", "dream-rose-brand");
+      brand.id = BRAND_ID;
+      brand.setAttribute("aria-label", config.copy.brandTitle || "Romantic Rose");
+      const bloom = makeElement("span", "dream-rose-brand-bloom");
+      bloom.setAttribute("aria-hidden", "true");
+      const copy = makeElement("span", "dream-rose-brand-copy");
+      copy.appendChild(makeElement("strong", "", config.copy.brandTitle));
+      copy.appendChild(makeElement("small", "", config.copy.brandSubtitle));
+      brand.appendChild(bloom);
+      brand.appendChild(copy);
+      shellMain.appendChild(brand);
+    }
+
+    const hero = home.querySelector?.(":scope > div:first-child > div:first-child > div:first-child");
+    if (hero && !document.getElementById(HERO_DECOR_ID)) {
+      const decor = makeElement("div", "dream-rose-hero-decor");
+      decor.id = HERO_DECOR_ID;
+      decor.setAttribute("aria-hidden", "true");
+      decor.appendChild(makeElement("span", "dream-rose-signature", config.copy.signature));
+      decor.appendChild(makeElement("span", "dream-rose-tagline", config.copy.tagline));
+      decor.appendChild(makeElement("span", "dream-rose-person"));
+      decor.appendChild(makeElement("span", "dream-rose-petals"));
+      hero.appendChild(decor);
+    }
+
+    const cardHost = hero?.querySelector?.(":scope > div:nth-child(2)");
+    if (cardHost && !document.getElementById(CARDS_ID)) {
+      const cards = makeElement("div", "dream-rose-action-cards");
+      cards.id = CARDS_ID;
+      const symbols = ["</>", "+", "✓", "×"];
+      roseActions.forEach(([label, prompt], index) => {
+        const button = makeElement("button", "dream-rose-action-card");
+        button.type = "button";
+        button.setAttribute("aria-label", label);
+        button.appendChild(makeElement("span", "dream-rose-card-icon", symbols[index]));
+        button.appendChild(makeElement("span", "dream-rose-card-label", label));
+        button.appendChild(makeElement("span", "dream-rose-card-heart", "♥"));
+        button.addEventListener?.("click", () => fillComposer(prompt));
+        cards.appendChild(button);
+      });
+      cardHost.appendChild(cards);
+    }
+
+    if (config.copy.placeholder) {
+      const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
+      const placeholder = editor?.querySelector?.("p.placeholder[data-placeholder]");
+      if (placeholder && !(editor.textContent || "").trim()) {
+        if (!placeholder.classList.contains("dream-placeholder-managed")) {
+          placeholder.dataset.dreamOriginalPlaceholder = placeholder.getAttribute("data-placeholder") || "";
+          placeholder.classList.add("dream-placeholder-managed");
+        }
+        placeholder.setAttribute("data-placeholder", config.copy.placeholder);
+      }
+    }
   };
 
   const ensure = () => {
@@ -358,6 +486,7 @@
     }
     for (const candidate of utilityBars) candidate.classList.add(HOME_UTILITY_CLASS);
     shellMain.classList.toggle("dream-home-shell", Boolean(home));
+    ensureRoseHome(home, shellMain);
 
     let chrome = document.getElementById(CHROME_ID);
     if (!chrome || chrome.parentElement !== document.body) {
@@ -379,6 +508,7 @@
     if (state?.timer) clearInterval(state.timer);
     if (state?.scheduler?.timeout) clearTimeout(state.scheduler.timeout);
     if (state?.artUrl) URL.revokeObjectURL(state.artUrl);
+    if (state?.personUrl) URL.revokeObjectURL(state.personUrl);
     delete window[STATE_KEY];
     return true;
   };
@@ -403,7 +533,7 @@
   });
   const timer = setInterval(ensure, 5000);
   window[STATE_KEY] = {
-    ensure, cleanup, observer, timer, scheduler, artUrl, profile, config, installToken, version: "1.2.0",
+    ensure, cleanup, observer, timer, scheduler, artUrl, personUrl, profile, config, installToken, version: "1.3.0",
   };
   ensure();
   analyzeArt().then((result) => {
@@ -413,5 +543,5 @@
     state.profile = result;
     ensure();
   });
-  return { installed: true, version: "1.2.0", adaptive: true };
-})(__DREAM_CSS_JSON__, __DREAM_ART_JSON__, __DREAM_THEME_JSON__)
+  return { installed: true, version: "1.3.0", adaptive: true };
+})(__DREAM_CSS_JSON__, __DREAM_ART_JSON__, __DREAM_LAYERS_JSON__, __DREAM_THEME_JSON__)

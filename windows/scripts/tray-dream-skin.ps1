@@ -1,11 +1,15 @@
-[CmdletBinding()]
-param([int]$Port = 9335)
+﻿[CmdletBinding()]
+param(
+  [int]$Port = 9335,
+  [switch]$SelfTest
+)
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'common-windows.ps1')
+Use-DreamSkinWindowsPowerShell -ScriptPath $PSCommandPath -BoundParameters $PSBoundParameters -RemainingArguments $args
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName Microsoft.VisualBasic
-. (Join-Path $PSScriptRoot 'common-windows.ps1')
 . (Join-Path $PSScriptRoot 'theme-windows.ps1')
 
 Assert-DreamSkinPort -Port $Port
@@ -17,7 +21,8 @@ $startScript = Join-Path $PSScriptRoot 'start-dream-skin.ps1'
 $restoreScript = Join-Path $PSScriptRoot 'restore-dream-skin.ps1'
 
 $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-$mutex = [System.Threading.Mutex]::new($false, "Local\CodexDreamSkin.$sid.Tray")
+$mutexSuffix = if ($SelfTest) { 'TraySelfTest' } else { 'Tray' }
+$mutex = [System.Threading.Mutex]::new($false, "Local\CodexDreamSkin.$sid.$mutexSuffix")
 $acquired = $false
 try {
   try { $acquired = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $acquired = $true }
@@ -50,7 +55,7 @@ try {
 
   function Add-DreamSkinTrayItem {
     param(
-      [Parameter(Mandatory = $true)][System.Windows.Forms.ToolStripItemCollection]$Items,
+      [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Windows.Forms.ToolStripItemCollection]$Items,
       [Parameter(Mandatory = $true)][string]$Text,
       [AllowNull()][scriptblock]$Action,
       [bool]$Enabled = $true
@@ -159,6 +164,12 @@ try {
       Show-DreamSkinTrayError -Message $_.Exception.Message
     }
   })
+  if ($SelfTest) {
+    Rebuild-DreamSkinTrayMenu
+    if ($menu.Items.Count -eq 0) { throw 'Tray menu self-test produced no items.' }
+    Write-Host 'PASS: tray menu initialized.'
+    return
+  }
   [System.Windows.Forms.Application]::Run()
 } finally {
   if ($null -ne $notify) { $notify.Dispose() }

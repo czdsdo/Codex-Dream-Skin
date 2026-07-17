@@ -7,7 +7,7 @@ import { readImageMetadata } from "./image-metadata.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.2.0";
+const SKIN_VERSION = "1.3.0";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -331,6 +331,8 @@ async function loadTheme(themeDir) {
   const art = raw.art && typeof raw.art === "object" && !Array.isArray(raw.art) ? raw.art : {};
   const palette = raw.palette && typeof raw.palette === "object" && !Array.isArray(raw.palette)
     ? raw.palette : {};
+  const copy = raw.copy && typeof raw.copy === "object" && !Array.isArray(raw.copy)
+    ? raw.copy : {};
   const theme = {
     id: normalizedText(raw.id, "id", "custom", 80),
     name: normalizedText(raw.name, "name", "Codex Dream Skin", 120),
@@ -343,6 +345,13 @@ async function loadTheme(themeDir) {
       taskMode: normalizedChoice(art.taskMode, "art.taskMode", THEME_CHOICES.taskMode, "auto"),
     },
     palette: {},
+    copy: {
+      brandTitle: normalizedText(copy.brandTitle, "copy.brandTitle", "", 80),
+      brandSubtitle: normalizedText(copy.brandSubtitle, "copy.brandSubtitle", "", 80),
+      signature: normalizedText(copy.signature, "copy.signature", "", 80),
+      tagline: normalizedText(copy.tagline, "copy.tagline", "", 120),
+      placeholder: normalizedText(copy.placeholder, "copy.placeholder", "", 120),
+    },
   };
   if (typeof palette.accent === "string" && palette.accent.trim()) {
     const accent = palette.accent.trim();
@@ -383,17 +392,26 @@ async function loadTheme(themeDir) {
 
 async function loadPayload(themeDir = path.join(root, "assets"), candidateTheme = null) {
   const loadedTheme = candidateTheme ?? await loadTheme(themeDir);
-  const [css, template] = await Promise.all([
+  const personPath = path.join(root, "assets", "romantic-rose-person.png");
+  const [css, template, personBytes] = await Promise.all([
     fs.readFile(path.join(root, "assets", "dream-skin.css"), "utf8"),
     fs.readFile(path.join(root, "assets", "renderer-inject.js"), "utf8"),
+    fs.readFile(personPath),
   ]);
+  if (!readImageMetadata(personBytes, ".png")) {
+    throw new Error("Romantic Rose person layer metadata is invalid");
+  }
   const extension = path.extname(loadedTheme.imagePath).toLowerCase();
   const mime = extension === ".jpg" || extension === ".jpeg" ? "image/jpeg"
     : extension === ".webp" ? "image/webp" : "image/png";
   const artDataUrl = `data:${mime};base64,${loadedTheme.imageBytes.toString("base64")}`;
+  const layers = loadedTheme.theme.id === "preset-romantic-rose"
+    ? { person: `data:image/png;base64,${personBytes.toString("base64")}` }
+    : {};
   const payload = template
     .replace("__DREAM_CSS_JSON__", JSON.stringify(css))
     .replace("__DREAM_ART_JSON__", JSON.stringify(artDataUrl))
+    .replace("__DREAM_LAYERS_JSON__", JSON.stringify(layers))
     .replace("__DREAM_THEME_JSON__", JSON.stringify(loadedTheme.theme));
   const { imageBytes: _imageBytes, ...themeState } = loadedTheme;
   return { ...themeState, payload };
@@ -546,13 +564,16 @@ async function removeFromSession(session) {
     );
     for (const property of [
       '--dream-art', '--dream-art-position', '--dream-focus-x', '--dream-focus-y',
-      '--dream-accent', '--dream-accent-ink', '--dream-image-luma'
+      '--dream-accent', '--dream-accent-ink', '--dream-image-luma', '--dream-person'
     ]) document.documentElement?.style.removeProperty(property);
     document.querySelectorAll('.dream-home').forEach((node) => node.classList.remove('dream-home'));
     document.querySelectorAll('.dream-task').forEach((node) => node.classList.remove('dream-task'));
     document.querySelectorAll('.dream-home-shell').forEach((node) => node.classList.remove('dream-home-shell'));
     document.getElementById('codex-dream-skin-style')?.remove();
     document.getElementById('codex-dream-skin-chrome')?.remove();
+    document.getElementById('codex-dream-skin-brand')?.remove();
+    document.getElementById('codex-dream-skin-hero-decor')?.remove();
+    document.getElementById('codex-dream-skin-action-cards')?.remove();
     delete window.__CODEX_DREAM_SKIN_STATE__;
     return true;
   })()`);
@@ -567,6 +588,9 @@ async function verifyRemovedSession(session) {
     !document.querySelector('.dream-home-shell') &&
     !document.getElementById('codex-dream-skin-style') &&
     !document.getElementById('codex-dream-skin-chrome') &&
+    !document.getElementById('codex-dream-skin-brand') &&
+    !document.getElementById('codex-dream-skin-hero-decor') &&
+    !document.getElementById('codex-dream-skin-action-cards') &&
     !window.__CODEX_DREAM_SKIN_STATE__
   )()`);
 }
@@ -580,7 +604,10 @@ async function verifySession(session) {
     };
     const home = document.querySelector('.dream-home');
     const suggestions = home?.querySelector('.group\\\\/home-suggestions') ?? null;
-    const cards = suggestions ? [...suggestions.querySelectorAll('button')].map(box) : [];
+    const roseCards = document.getElementById('codex-dream-skin-action-cards');
+    const cardHost = roseCards || suggestions;
+    const cards = cardHost ? [...cardHost.querySelectorAll('button')].map(box) : [];
+    const roseHome = document.documentElement.dataset.dreamTheme === 'preset-romantic-rose' && Boolean(home);
     const result = {
       installed: document.documentElement.classList.contains('codex-dream-skin'),
       version: window.__CODEX_DREAM_SKIN_STATE__?.version ?? null,
@@ -590,6 +617,10 @@ async function verifySession(session) {
       chromePointerEvents: getComputedStyle(document.getElementById('codex-dream-skin-chrome') || document.body).pointerEvents,
       homePresent: Boolean(home),
       suggestionsPresent: Boolean(suggestions),
+      roseHome,
+      brandPresent: Boolean(document.getElementById('codex-dream-skin-brand')),
+      heroDecorPresent: Boolean(document.getElementById('codex-dream-skin-hero-decor')),
+      roseCardsPresent: Boolean(roseCards),
       hero: box(home?.firstElementChild?.firstElementChild?.firstElementChild),
       cards,
       composer: box(document.querySelector('.composer-surface-chrome')),
@@ -604,7 +635,9 @@ async function verifySession(session) {
       result.stylePresent && result.chromePresent &&
       result.chromePointerEvents === 'none' && Boolean(result.composer) && Boolean(result.sidebar) &&
       (!result.homePresent || (Boolean(result.hero) &&
-        (!result.suggestionsPresent || (result.cards.length >= 2 && result.cards.length <= 4))));
+        (!result.suggestionsPresent || (result.cards.length >= 2 && result.cards.length <= 4)) &&
+        (!result.roseHome || (result.brandPresent && result.heroDecorPresent &&
+          result.roseCardsPresent && result.cards.length === 4))));
     return result;
   })()`);
 }

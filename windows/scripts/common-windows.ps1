@@ -1,5 +1,46 @@
 . (Join-Path $PSScriptRoot 'config-utf8.ps1')
 
+function Use-DreamSkinWindowsPowerShell {
+  param(
+    [Parameter(Mandatory = $true)][string]$ScriptPath,
+    [hashtable]$BoundParameters = @{},
+    [object[]]$RemainingArguments = @()
+  )
+
+  if ($PSVersionTable.PSEdition -ne 'Core') { return }
+
+  $windowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+  if (-not (Test-Path -LiteralPath $windowsPowerShell -PathType Leaf)) {
+    throw "Windows PowerShell 5.1 is required but was not found: $windowsPowerShell"
+  }
+
+  $forwarded = @()
+  foreach ($entry in $BoundParameters.GetEnumerator()) {
+    $value = $entry.Value
+    if ($value -is [System.Management.Automation.SwitchParameter]) {
+      if ($value.IsPresent) { $forwarded += "-$($entry.Key)" }
+      continue
+    }
+    if ($value -is [bool]) {
+      if ($value) { $forwarded += "-$($entry.Key)" }
+      continue
+    }
+    $forwarded += "-$($entry.Key)"
+    $forwarded += "$value"
+  }
+  foreach ($argument in $RemainingArguments) { $forwarded += "$argument" }
+
+  $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+  $startInfo.FileName = $windowsPowerShell
+  $startInfo.UseShellExecute = $false
+  foreach ($argument in @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ScriptPath) + $forwarded) {
+    [void]$startInfo.ArgumentList.Add("$argument")
+  }
+  $process = [System.Diagnostics.Process]::Start($startInfo)
+  $process.WaitForExit()
+  exit $process.ExitCode
+}
+
 function Enter-DreamSkinOperationLock {
   $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
   $mutex = [System.Threading.Mutex]::new($false, "Local\CodexDreamSkin.$sid.Operation")
@@ -63,6 +104,73 @@ function ConvertTo-DreamSkinProcessArgument {
   return '"' + $escaped + '"'
 }
 
+function Initialize-DreamSkinApplicationActivation {
+  if ('DreamSkin.Interop.ApplicationActivationManager' -as [type]) { return }
+
+  Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+namespace DreamSkin.Interop {
+  [Flags]
+  public enum ActivateOptions {
+    None = 0
+  }
+
+  [ComImport]
+  [Guid("2e941141-7f97-4756-ba1d-9decde894a3d")]
+  [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  public interface IApplicationActivationManager {
+    [PreserveSig]
+    int ActivateApplication(
+      [MarshalAs(UnmanagedType.LPWStr)] string appUserModelId,
+      [MarshalAs(UnmanagedType.LPWStr)] string arguments,
+      ActivateOptions options,
+      out uint processId);
+  }
+
+  [ComImport]
+  [Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")]
+  public class ApplicationActivationManager {
+  }
+
+  public static class ApplicationActivator {
+    public static uint Activate(string applicationId, string arguments) {
+      IApplicationActivationManager manager =
+        (IApplicationActivationManager)new ApplicationActivationManager();
+      uint processId;
+      int result = manager.ActivateApplication(
+        applicationId,
+        arguments,
+        ActivateOptions.None,
+        out processId);
+      if (result < 0) {
+        Marshal.ThrowExceptionForHR(result);
+      }
+      return processId;
+    }
+  }
+}
+'@
+}
+
+function Start-DreamSkinCodex {
+  param(
+    [Parameter(Mandatory = $true)][object]$Codex,
+    [string[]]$Arguments = @()
+  )
+
+  $applicationId = "$($Codex.ApplicationId)"
+  if (-not $applicationId -and $Codex.PackageFamilyName) {
+    $applicationId = "$($Codex.PackageFamilyName)!App"
+  }
+  if (-not $applicationId) { throw 'The Codex Store application ID is unavailable.' }
+
+  Initialize-DreamSkinApplicationActivation
+  $argumentLine = ($Arguments | ForEach-Object { ConvertTo-DreamSkinProcessArgument -Value "$_" }) -join ' '
+  return [DreamSkin.Interop.ApplicationActivator]::Activate($applicationId, $argumentLine)
+}
+
 function Get-DreamSkinProcessExecutablePath {
   param([Parameter(Mandatory = $true)][object]$ProcessInfo)
   if ($ProcessInfo.ExecutablePath) { return "$($ProcessInfo.ExecutablePath)" }
@@ -110,6 +218,7 @@ function ConvertTo-DreamSkinCodexInstall {
     Version = "$($Package.Version)"
     PackageFullName = "$($Package.PackageFullName)"
     PackageFamilyName = "$($Package.PackageFamilyName)"
+    ApplicationId = "$($Package.PackageFamilyName)!App"
     SignatureKind = "$($Package.SignatureKind)"
   }
 }
@@ -171,6 +280,7 @@ function Resolve-DreamSkinCodexInstallFromState {
       Version = $install.Version
       PackageFullName = $install.PackageFullName
       PackageFamilyName = $install.PackageFamilyName
+      ApplicationId = $install.ApplicationId
       SignatureKind = $install.SignatureKind
       FromState = $true
       RegisteredPackageVerified = $true
