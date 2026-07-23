@@ -17,6 +17,17 @@
   非 OpenAI 官方产品。不修改 <code>.app</code> / <code>app.asar</code> / WindowsApps。
 </p>
 
+## 直接安装
+
+普通用户只需先安装并退出一次官方 Codex / ChatGPT，然后从
+[GitHub Releases](https://github.com/Fei-Away/Codex-Dream-Skin/releases) 下载：
+
+- macOS：打开 `CodexDreamSkin-vX.Y.Z.dmg`，把 App 拖进 Applications。
+- Windows：双击 `CodexDreamSkin-Setup-vX.Y.Z.exe`，按安装向导完成。
+
+不需要 clone 源码、安装 Node.js 或手动运行 `.sh` / `.ps1`。首次未签名放行、更新和卸载步骤见
+[macOS 安装说明](./docs/install-macos.md) / [Windows 安装说明](./docs/install-windows.md)。
+
 ## 赞助商
 
 <p align="center">
@@ -41,39 +52,38 @@
   </sub>
 </p>
 
-## 实测精选预设：桥本有菜
+## 实测精选预设
+
+### Gothic Void Crusade / 哥特虚空远征
+
+**特别感谢 [@seansong-ideogram](https://github.com/seansong-ideogram) 为社区设计并贡献这套精美、极具氛围感的原创哥特科幻作品。** 它是当前实测精选的第一套预设，也是 macOS 全新安装时默认启用的主题。
+
+<p align="center">
+  <img src="docs/images/presets/gothic-void-crusade-preview.jpg" alt="哥特虚空远征主题实机效果" width="900"><br>
+  <sub>真实 Codex 首页注入效果（仅预览）</sub>
+</p>
+
+安装后可直接从 macOS 菜单栏的「已保存主题」切换。
+
+### 桥本有菜 / Arina Hashimoto
 
 下面这套「桥本有菜 / Arina Hashimoto」已经在真实 Codex 首页分别验证浅色和暗色外观。用户提供的源 PNG 为 `1672 × 941`，主题包在保持源图近 16:9 构图的前提下派生导出 `2560 × 1440` JPEG，并不代表增加了源图细节。截图中的侧栏、卡片、项目选择和输入框都是 Codex 原生控件。
 
 <p align="center">
-  <img src="docs/images/presets/romantic-rose-light.jpg" alt="桥本有菜主题浅色实机效果" width="900"><br>
+  <img src="docs/images/presets/arina-hashimoto-light.jpg" alt="桥本有菜主题浅色实机效果" width="900"><br>
   <sub>浅色 · 真实注入截图（未发送输入已在截图时遮蔽，仅预览）</sub>
 </p>
 
 <p align="center">
-  <img src="docs/images/presets/romantic-rose-dark.jpg" alt="桥本有菜主题暗色实机效果" width="900"><br>
+  <img src="docs/images/presets/arina-hashimoto-dark.jpg" alt="桥本有菜主题暗色实机效果" width="900"><br>
   <sub>暗色 · 真实注入截图（未发送输入已在截图时遮蔽，仅预览）</sub>
 </p>
 
-从仓库安装并一键切换（macOS）：
+这组人物素材留在源码仓库用于参考与权利核验，不进入公开 DMG / Setup.exe；公开安装包只预置已确认
+可分发的 Gothic Void Crusade。普通用户仍可从菜单里的「更换背景图」导入自己有权使用的纯背景，
+保存后继续一键切换。
 
-```bash
-cd macos
-./scripts/install-dream-skin-macos.sh --no-launch
-~/.codex/codex-dream-skin-studio/scripts/switch-theme-macos.sh \
-  --id preset-romantic-rose
-```
-
-Windows 使用本地主题仓库与系统托盘，并会预置同一套「桥本有菜」。首次从仓库使用：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\windows\scripts\install-dream-skin.ps1
-powershell -ExecutionPolicy Bypass -File .\windows\scripts\start-dream-skin.ps1
-```
-
-启动后可直接从「已保存主题 → 桥本有菜」切换；不需要跨目录手动导入。托盘里的「更换背景图」仍可导入你自己的纯背景，保存后继续一键切换。
-
-> 可下载的用户源图是 [`docs/images/presets/romantic-rose-source.png`](./docs/images/presets/romantic-rose-source.png)（`1672 × 941`）；macOS 一键预设使用 [`macos/presets/preset-romantic-rose/background.jpg`](./macos/presets/preset-romantic-rose/background.jpg)（规范化派生 `2560 × 1440`）。上面两个效果图包含真实 UI，**只作预览，绝不能当背景导入**。背景为用户提供的 AI 生成示例，不代表 OpenAI/Codex 官方视觉或背书；公开再分发前请确认人物与素材权利。
+> 可下载的用户源图是 [`docs/images/presets/arina-hashimoto-source.png`](./docs/images/presets/arina-hashimoto-source.png)（`1672 × 941`）；源码参考预设使用 [`macos/presets/preset-arina-hashimoto/background.jpg`](./macos/presets/preset-arina-hashimoto/background.jpg)（规范化派生 `2560 × 1440`）。上面两个效果图包含真实 UI，**只作预览，绝不能当背景导入**。背景为用户提供的 AI 生成示例，不代表 OpenAI/Codex 官方视觉或背书；未确认人物与素材权利前不得把它打进公开安装包。
 
 ## 概念效果图（不可直接导入）
 
@@ -130,6 +140,22 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\start-dream-skin.ps1
 
 ## 快速开始
 
+### 普通用户：下载安装包
+
+不需要 clone 仓库，也不需要安装 Node.js 或运行 `.sh` / `.ps1`。从
+[GitHub Releases](https://github.com/Fei-Away/Codex-Dream-Skin/releases) 下载对应平台的最新安装包，
+按平台文档完成一次图形界面安装：
+
+| 平台 | 下载 | 安装说明 |
+|------|------|----------|
+| macOS | `CodexDreamSkin-vX.Y.Z.dmg` | [`docs/install-macos.md`](./docs/install-macos.md) |
+| Windows | `CodexDreamSkin-Setup-vX.Y.Z.exe` | [`docs/install-windows.md`](./docs/install-windows.md) |
+
+安装后从菜单栏（macOS）或系统托盘（Windows）使用。更新时下载新安装包覆盖安装，主题和图片会保留；
+未签名的新下载文件在个别系统上仍可能再次出现一次安全提示，文档列出了放行方法。
+
+### 开发者：从源码运行
+
 仓库内按平台放了现成脚本（实现细节不同，效果都是「主题化 Codex」）：
 
 | 平台 | 目录 | 入口 |
@@ -140,7 +166,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\start-dream-skin.ps1
 更细的说明：
 
 - Mac：[`macos/README.md`](./macos/README.md)
-- Windows：[`windows/SKILL.md`](./windows/SKILL.md)
+- Windows：[`windows/README.md`](./windows/README.md)
 - 路径对照：[`docs/platforms.md`](./docs/platforms.md)
 - 可直接复制的参考生图模板：[`docs/reference-background-prompt-guide.md`](./docs/reference-background-prompt-guide.md)
 - 八种概念方向详细提示词：[`docs/background-generation-prompts.md`](./docs/background-generation-prompts.md)

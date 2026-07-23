@@ -19,17 +19,27 @@ $paths = Initialize-DreamSkinThemeStore -SkillRoot $SkillRoot -StateRoot $StateR
 $powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
 $startScript = Join-Path $PSScriptRoot 'start-dream-skin.ps1'
 $restoreScript = Join-Path $PSScriptRoot 'restore-dream-skin.ps1'
+$checkUpdateScript = Join-Path $PSScriptRoot 'check-update.ps1'
+$startupShortcut = Join-Path ([Environment]::GetFolderPath('Startup')) 'Codex Dream Skin.lnk'
 
 $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $mutexSuffix = if ($SelfTest) { 'TraySelfTest' } else { 'Tray' }
 $mutex = [System.Threading.Mutex]::new($false, "Local\CodexDreamSkin.$sid.$mutexSuffix")
 $acquired = $false
+$notify = $null
+$trayIcon = $null
 try {
   try { $acquired = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $acquired = $true }
   if (-not $acquired) { exit 0 }
 
   $notify = [System.Windows.Forms.NotifyIcon]::new()
-  $notify.Icon = [System.Drawing.SystemIcons]::Application
+  $iconPath = Join-Path $SkillRoot 'assets\codex-dream-skin.ico'
+  if (Test-Path -LiteralPath $iconPath -PathType Leaf) {
+    $trayIcon = [System.Drawing.Icon]::new($iconPath)
+    $notify.Icon = $trayIcon
+  } else {
+    $notify.Icon = [System.Drawing.SystemIcons]::Application
+  }
   $notify.Text = 'Codex Dream Skin'
   $notify.Visible = $true
   $menu = [System.Windows.Forms.ContextMenuStrip]::new()
@@ -48,20 +58,24 @@ try {
   function Start-DreamSkinPowerShell {
     param([Parameter(Mandatory = $true)][string]$Script, [string[]]$Arguments = @())
     $scriptToken = ConvertTo-DreamSkinProcessArgument -Value $Script
-    $argumentLine = '-NoProfile -ExecutionPolicy Bypass -File ' + $scriptToken
+    $argumentLine = '-NoProfile -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File ' + $scriptToken
     if ($Arguments.Count -gt 0) { $argumentLine += ' ' + ($Arguments -join ' ') }
-    Start-Process -FilePath $powershell -ArgumentList $argumentLine | Out-Null
+    Start-Process -FilePath $powershell -ArgumentList $argumentLine -WindowStyle Hidden | Out-Null
   }
 
   function Add-DreamSkinTrayItem {
     param(
-      [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Windows.Forms.ToolStripItemCollection]$Items,
+      [Parameter(Mandatory = $true)]
+      [AllowEmptyCollection()]
+      [System.Windows.Forms.ToolStripItemCollection]$Items,
       [Parameter(Mandatory = $true)][string]$Text,
       [AllowNull()][scriptblock]$Action,
-      [bool]$Enabled = $true
+      [bool]$Enabled = $true,
+      [bool]$Checked = $false
     )
     $item = [System.Windows.Forms.ToolStripMenuItem]::new($Text)
     $item.Enabled = $Enabled
+    $item.Checked = $Checked
     if ($null -ne $Action) {
       $item.add_Click({
         try { & $Action } catch { Show-DreamSkinTrayError -Message $_.Exception.Message }
@@ -69,6 +83,21 @@ try {
     }
     [void]$Items.Add($item)
     return $item
+  }
+
+  function Set-DreamSkinAutoStart {
+    param([Parameter(Mandatory = $true)][bool]$Enabled)
+    if (-not $Enabled) {
+      Remove-Item -LiteralPath $startupShortcut -Force -ErrorAction SilentlyContinue
+      return
+    }
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($startupShortcut)
+    $shortcut.TargetPath = $powershell
+    $shortcut.Arguments = "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File `"$PSScriptRoot\tray-dream-skin.ps1`""
+    $shortcut.WorkingDirectory = $SkillRoot
+    $shortcut.Description = 'Start Codex Dream Skin in the notification area'
+    $shortcut.Save()
   }
 
   function Rebuild-DreamSkinTrayMenu {
@@ -87,14 +116,57 @@ try {
 
     $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '应用或重新应用' -Action {
       Set-DreamSkinPaused -Paused $false -StateRoot $StateRoot | Out-Null
+      $session = Get-DreamSkinLiveSessionContext -StateRoot $StateRoot
+      $begin = $null
+      if ($null -ne $session) {
+        $begin = Show-DreamSkinOperationUi -Session $session -Phase begin -Kind apply -TimeoutMs 3000
+      }
       Start-DreamSkinPowerShell -Script $startScript -Arguments @('-Port', "$Port", '-PromptRestart')
+      # start-dream-skin is async; close the in-window loading so it does not stick for 180s.
+      if ($null -ne $session -and $null -ne $begin -and $begin.Ok) {
+        $null = Show-DreamSkinOperationUi -Session $session -Phase finish -Token $begin.Token `
+          -UiState success -Message '已开始应用皮肤' -TimeoutMs 1500
+      }
+      $notify.ShowBalloonTip(1800, 'Codex Dream Skin', '正在应用皮肤…', [System.Windows.Forms.ToolTipIcon]::Info)
     }
-    $pauseText = if ($paused) { '继续显示皮肤' } else { '暂停皮肤' }
-    $nextPaused = -not $paused
-    $pauseAction = {
-      Set-DreamSkinPaused -Paused $nextPaused -StateRoot $StateRoot | Out-Null
-    }.GetNewClosure()
-    $null = Add-DreamSkinTrayItem -Items $menu.Items -Text $pauseText -Action $pauseAction
+    # Match macOS menubar: pause = mark + live remove; resume = clear pause + re-apply.
+    if ($paused) {
+      $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '继续显示皮肤' -Action {
+        # Match macOS: clear pause + apply path; show in-window loading when CDP is up.
+        Set-DreamSkinPaused -Paused $false -StateRoot $StateRoot | Out-Null
+        $session = Get-DreamSkinLiveSessionContext -StateRoot $StateRoot
+        $begin = $null
+        if ($null -ne $session) {
+          $begin = Show-DreamSkinOperationUi -Session $session -Phase begin -Kind apply -TimeoutMs 3000
+        }
+        Start-DreamSkinPowerShell -Script $startScript -Arguments @('-Port', "$Port", '-PromptRestart')
+        if ($null -ne $session -and $null -ne $begin -and $begin.Ok) {
+          $null = Show-DreamSkinOperationUi -Session $session -Phase finish -Token $begin.Token `
+            -UiState success -Message '已开始重新应用皮肤' -TimeoutMs 1500
+        }
+        $notify.ShowBalloonTip(
+          1800,
+          'Codex Dream Skin',
+          '正在重新应用皮肤…',
+          [System.Windows.Forms.ToolTipIcon]::Info
+        )
+      }
+    } else {
+      $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '暂停皮肤' -Action {
+        # Match macOS pause: marker + live remove with in-window loading / result.
+        Set-DreamSkinPaused -Paused $true -StateRoot $StateRoot | Out-Null
+        $removal = Invoke-DreamSkinLiveRemove -StateRoot $StateRoot
+        $icon = if ($removal.Removed) {
+          [System.Windows.Forms.ToolTipIcon]::Info
+        } else {
+          [System.Windows.Forms.ToolTipIcon]::Warning
+        }
+        $notify.ShowBalloonTip(2800, 'Codex Dream Skin', $removal.Message, $icon)
+        if (-not $removal.Removed -and $removal.Attempted) {
+          Show-DreamSkinTrayError -Message $removal.Message
+        }
+      }
+    }
     $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '更换背景图' -Action {
       $dialog = [System.Windows.Forms.OpenFileDialog]::new()
       $dialog.Title = '选择 Codex Dream Skin 背景图'
@@ -139,8 +211,22 @@ try {
     [void]$menu.Items.Add($savedMenu)
 
     $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '打开图片文件夹' -Action {
-      Start-Process -FilePath explorer.exe -ArgumentList @($paths.Images) | Out-Null
+      $imageDirectoryToken = ConvertTo-DreamSkinProcessArgument -Value $paths.Images
+      Start-Process -FilePath explorer.exe -ArgumentList $imageDirectoryToken | Out-Null
     }
+    [void]$menu.Items.Add([System.Windows.Forms.ToolStripSeparator]::new())
+    $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '检查更新…' -Action {
+      Start-DreamSkinPowerShell -Script $checkUpdateScript -Arguments @('-Interactive')
+    }
+    $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '打开 DreamSkin.cc' -Action {
+      Start-Process -FilePath 'https://dreamskin.cc' | Out-Null
+    }
+    $autoStartEnabled = Test-Path -LiteralPath $startupShortcut -PathType Leaf
+    $autoStartAction = {
+      Set-DreamSkinAutoStart -Enabled:(-not $autoStartEnabled)
+    }.GetNewClosure()
+    $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '登录时启动' `
+      -Action $autoStartAction -Checked $autoStartEnabled
     [void]$menu.Items.Add([System.Windows.Forms.ToolStripSeparator]::new())
     $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '完全恢复 Codex' -Action {
       Start-DreamSkinPowerShell -Script $restoreScript -Arguments @(
@@ -173,6 +259,7 @@ try {
   [System.Windows.Forms.Application]::Run()
 } finally {
   if ($null -ne $notify) { $notify.Dispose() }
+  if ($null -ne $trayIcon) { $trayIcon.Dispose() }
   if ($acquired) { try { $mutex.ReleaseMutex() } catch {} }
   $mutex.Dispose()
 }

@@ -8,18 +8,34 @@ Codex Dream Skin loads an external theme into the official Codex Windows desktop
 
 ## Requirements
 
+- Windows 10 or newer on x64 (the installer declares Windows 10 as its minimum).
 - The official `OpenAI.Codex` app installed from Microsoft Store and registered for the current user.
-- Node.js 22 or newer, with `node.exe` available on `PATH`.
-- Windows PowerShell 5.1 or newer.
+- Release Setup.exe bundles Node.js. Only source-based use needs Node.js 22 or
+  newer on `PATH`.
+- Windows PowerShell 5.1 or newer (the installer invokes it in the background;
+  ordinary users do not open it).
+
+## Release install (recommended for users)
+
+Download `CodexDreamSkin-Setup-vX.Y.Z.exe` from
+[GitHub Releases](https://github.com/Fei-Away/Codex-Dream-Skin/releases) and
+follow [`docs/install-windows.md`](../docs/install-windows.md). The installer
+contains the pinned Node runtime, so users do not need a source checkout or to
+run a `.ps1` file. It installs per-user and should not request administrator
+access. An unsigned download may occasionally trigger SmartScreen; use
+**More info → Run anyway** only after checking the file came from this Release,
+and never disable Defender. Updates are new Setup.exe packages installed over
+the existing copy; themes and images are retained.
 
 Run the installer after Codex has fully exited. Normal use does not require administrator access or ownership changes under WindowsApps.
 
-## Install
+## Advanced: install from source
 
-Open PowerShell in the repository's `windows` directory and run:
+Ordinary users can skip this section. Open PowerShell in the repository's
+`windows` directory and run:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-dream-skin.ps1
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\install-dream-skin.ps1
 ```
 
 The installer validates the official Codex Store package and Node.js, saves a recoverable appearance baseline, and initializes the local theme store. By default it also creates these shortcuts:
@@ -28,11 +44,17 @@ The installer validates the official Codex Store package and Node.js, saves a re
 - `Codex Dream Skin - Tray`: open the system tray theme controls.
 - `Codex Dream Skin - Restore`: restore the stock appearance and close the saved CDP session.
 
+Source-install commands and daily shortcuts both use `RemoteSigned`, so they do not override system or enterprise Group Policy. The installer verifies the runtime copy with SHA-256, then clears download-zone markers only from managed PowerShell copies under `%LOCALAPPDATA%\CodexDreamSkin\engine`.
+
 Pass `-Port` during installation to use a fixed custom port. Valid ports range from `1024` through `65535`.
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-dream-skin.ps1 -Port 9444
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\install-dream-skin.ps1 -Port 9444
 ```
+
+## Update
+
+Exit the Dream Skin tray and close Codex, update the checkout (`git pull`, or download the latest source again), then rerun the install command above. The installer atomically replaces the managed runtime and rebuilds its shortcuts without deleting the active theme, saved themes, or imported images.
 
 ## Launch and verify
 
@@ -41,13 +63,13 @@ The `Codex Dream Skin` shortcut is the recommended launcher. It asks for confirm
 Command-line launch:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-dream-skin.ps1 -PromptRestart
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\start-dream-skin.ps1 -PromptRestart
 ```
 
 Run verification after launch:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-dream-skin.ps1 `
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\verify-dream-skin.ps1 `
   -ScreenshotPath "$env:TEMP\codex-dream-skin.png"
 ```
 
@@ -77,14 +99,14 @@ Import a UI-free wallpaper rather than a preview containing a window, sidebar, c
 Restore the stock appearance. If Codex is running, confirm its closure and relaunch:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\restore-dream-skin.ps1 `
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\restore-dream-skin.ps1 `
   -RestoreBaseTheme -PromptRestart
 ```
 
 Add `-Uninstall` to also remove the shortcuts created by Dream Skin:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\restore-dream-skin.ps1 `
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\restore-dream-skin.ps1 `
   -RestoreBaseTheme -PromptRestart -Uninstall
 ```
 
@@ -125,6 +147,10 @@ The scripts accept only a registered official Store package. They do not launch 
 ### The installer asks you to close Codex
 
 Close every Codex window and run the installer again. Installation requires stable app and configuration state.
+
+### Antivirus reports the old tray shortcut
+
+Older tray shortcuts combined hidden PowerShell with `ExecutionPolicy Bypass`, which can trigger behavior-based LNK detections. Do not whitelist the detection blindly. Update the source and rerun the installer so the shortcuts use `RemoteSigned`. If the updated shortcut is still detected, leave it quarantined and report the antivirus product, version, detection name, and shortcut properties without sharing secrets or private data.
 
 ### The port is occupied
 
