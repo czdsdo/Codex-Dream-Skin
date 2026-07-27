@@ -262,6 +262,11 @@ export async function runRendererRuntimeTest(assetRoot) {
   assert.match(css, /content:\s*var\(--dream-skin-name[\s\S]{0,180}var\(--dream-skin-brand-subtitle/);
   assert.match(css, /content:\s*var\(--dream-skin-status/);
   assert.match(css, /content:\s*var\(--dream-skin-quote/);
+  assert.match(
+    css,
+    /\[data-dream-shell="light"\][\s\S]{0,120}\[class~="group\/application-menu-top-bar"\][\s\S]{0,260}#5b3a42/,
+    "Windows light appearance must give the native menu bar a readable warm surface and text color.",
+  );
   assert.match(css, /--ds-task-full-veil/);
   assert.match(css, /data-dream-task-mode="full"/);
   assert.match(css, /background-image:\s*var\(--ds-task-full-veil\),\s*var\(--dream-skin-art\)/);

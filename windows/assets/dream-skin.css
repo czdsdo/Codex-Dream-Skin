@@ -599,6 +599,28 @@ html[data-dream-skin="active"][data-dream-shell="light"]
 }
 
 /* Windows keeps this native bar outside main; macOS simply has no match. */
+html[data-dream-skin="active"][data-dream-shell="light"]
+  [class~="group/application-menu-top-bar"] {
+  color: #5b3a42 !important;
+  background:
+    linear-gradient(90deg, rgb(255 249 247 / .97), rgb(253 241 241 / .94)) !important;
+  border-bottom: 1px solid rgb(238 200 206 / .88) !important;
+  box-shadow: 0 2px 14px rgb(157 87 103 / .10) !important;
+  backdrop-filter: blur(16px) saturate(108%) !important;
+}
+
+html[data-dream-skin="active"][data-dream-shell="light"]
+  [class~="group/application-menu-top-bar"] :is(button, [role="menuitem"], svg) {
+  color: #6f4650 !important;
+  text-shadow: none !important;
+}
+
+html[data-dream-skin="active"][data-dream-shell="light"]
+  [class~="group/application-menu-top-bar"] :is(button, [role="menuitem"]):is(:hover, [data-state="open"]) {
+  color: #8f4055 !important;
+  background: rgb(216 103 130 / .13) !important;
+}
+
 html[data-dream-skin="active"][data-dream-shell="dark"]
   [class~="group/application-menu-top-bar"] {
   color: var(--ds-text) !important;

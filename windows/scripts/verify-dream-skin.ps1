@@ -9,6 +9,7 @@ $PortExplicit = $PSBoundParameters.ContainsKey('Port')
 $injector = Join-Path $PSScriptRoot 'injector.mjs'
 . (Join-Path $PSScriptRoot 'common-windows.ps1')
 Use-DreamSkinWindowsPowerShell -ScriptPath $PSCommandPath -BoundParameters $PSBoundParameters -RemainingArguments $args
+. (Join-Path $PSScriptRoot 'theme-windows.ps1')
 
 $operationLock = Enter-DreamSkinOperationLock
 $verifyExitCode = 1

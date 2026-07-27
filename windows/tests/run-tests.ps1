@@ -1291,6 +1291,9 @@ try {
   if (-not $verifyScriptSource.Contains('Get-DreamSkinVerifiedCdpIdentityForAnyRegistered')) {
     throw 'Verify lost the any-registered endpoint fallback for Store auto-updates.'
   }
+  if (-not $verifyScriptSource.Contains(". (Join-Path `$PSScriptRoot 'theme-windows.ps1')")) {
+    throw 'Verify must load theme-windows.ps1 before resolving the staged active theme.'
+  }
   foreach ($verifyCaller in @(
     @{ Name = 'start-dream-skin.ps1'; Source = $startSource },
     @{ Name = 'verify-dream-skin.ps1'; Source = $verifyScriptSource }
