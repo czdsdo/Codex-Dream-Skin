@@ -99,14 +99,14 @@ html[data-dream-skin="active"][data-dream-shell="light"] {
   --ds-immersive-mid: rgb(var(--ds-panel-rgb) / .28);
   --ds-immersive-far: rgb(var(--ds-panel-rgb) / .14);
   --ds-immersive-sidebar: rgb(var(--ds-panel-rgb) / .48);
-  --ds-task-immersive-sidebar: rgb(var(--ds-panel-rgb) / .72);
+  --ds-task-immersive-sidebar: rgb(var(--ds-panel-rgb) / .52);
   --ds-immersive-chrome: rgb(var(--ds-panel-rgb) / .34);
   --ds-immersive-composer: rgb(var(--ds-panel-rgb) / .46);
   --ds-immersive-composer-solid: rgb(var(--ds-panel-rgb) / .74);
   --ds-immersive-line: rgb(var(--ds-accent-rgb) / .24);
-  --ds-task-immersive-edge: rgb(var(--ds-panel-rgb) / .86);
-  --ds-task-immersive-mid: rgb(var(--ds-panel-rgb) / .78);
-  --ds-task-immersive-far: rgb(var(--ds-panel-rgb) / .66);
+  --ds-task-immersive-edge: rgb(var(--ds-panel-rgb) / .50);
+  --ds-task-immersive-mid: rgb(var(--ds-panel-rgb) / .40);
+  --ds-task-immersive-far: rgb(var(--ds-panel-rgb) / .30);
 }
 
 /* Native token surfaces (dropdown/popover) resolve from Codex's own

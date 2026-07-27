@@ -270,6 +270,11 @@ export async function runRendererRuntimeTest(assetRoot) {
   assert.match(css, /--ds-task-full-veil/);
   assert.match(css, /data-dream-task-mode="full"/);
   assert.match(css, /background-image:\s*var\(--ds-task-full-veil\),\s*var\(--dream-skin-art\)/);
+  assert.match(
+    css,
+    /\[data-dream-shell="light"\][\s\S]{0,2400}--ds-task-immersive-sidebar:\s*rgb\(var\(--ds-panel-rgb\)\s*\/\s*\.52\);[\s\S]{0,500}--ds-task-immersive-edge:\s*rgb\(var\(--ds-panel-rgb\)\s*\/\s*\.50\);[\s\S]{0,120}--ds-task-immersive-mid:\s*rgb\(var\(--ds-panel-rgb\)\s*\/\s*\.40\);[\s\S]{0,120}--ds-task-immersive-far:\s*rgb\(var\(--ds-panel-rgb\)\s*\/\s*\.30\);/,
+    "Light task routes must keep the wallpaper clearly visible through the neutral glass veil.",
+  );
   // Every home/project selector must stay behind the root skin gate.  A
   // marker-class-to-:has() conversion must never leave native layout rules
   // active after pause/restore.
