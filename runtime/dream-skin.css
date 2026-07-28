@@ -454,9 +454,8 @@ html[data-dream-skin="active"]:is([data-dream-task-mode="ambient"], [data-dream-
 
 html[data-dream-skin="active"][data-dream-shell="light"]:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]
   __DREAM_SELECTOR_SHELL_MAIN__:not(:has(__DREAM_SELECTOR_HOME_ROUTE_CSS__)) __DREAM_SELECTOR_MARKDOWN__ {
-  text-shadow:
-    0 1px 2px rgb(var(--ds-panel-rgb) / .92),
-    0 0 10px rgb(var(--ds-panel-rgb) / .72);
+  color: color-mix(in srgb, var(--ds-text) 86%, var(--ds-muted) 14%) !important;
+  text-shadow: 0 1px 1px rgb(var(--ds-panel-rgb) / .28);
 }
 
 html[data-dream-skin="active"]:is([data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])

@@ -275,6 +275,13 @@ export async function runRendererRuntimeTest(assetRoot) {
     /\[data-dream-shell="light"\][\s\S]{0,2400}--ds-task-immersive-sidebar:\s*rgb\(var\(--ds-panel-rgb\)\s*\/\s*\.52\);[\s\S]{0,500}--ds-task-immersive-edge:\s*rgb\(var\(--ds-panel-rgb\)\s*\/\s*\.50\);[\s\S]{0,120}--ds-task-immersive-mid:\s*rgb\(var\(--ds-panel-rgb\)\s*\/\s*\.40\);[\s\S]{0,120}--ds-task-immersive-far:\s*rgb\(var\(--ds-panel-rgb\)\s*\/\s*\.30\);/,
     "Light task routes must keep the wallpaper clearly visible through the neutral glass veil.",
   );
+  assert.match(
+    css,
+    /text-shadow:\s*0 1px 1px rgb\(var\(--ds-panel-rgb\)\s*\/\s*\.28\);/,
+    "Light task typography must use a restrained edge shadow instead of an overexposed glow.",
+  );
+  assert.match(css, /color:\s*color-mix\(in srgb,\s*var\(--ds-text\) 86%,\s*var\(--ds-muted\) 14%\) !important;/);
+  assert.doesNotMatch(css, /0 0 10px rgb\(var\(--ds-panel-rgb\)\s*\/\s*\.72\)/);
   // Every home/project selector must stay behind the root skin gate.  A
   // marker-class-to-:has() conversion must never leave native layout rules
   // active after pause/restore.
